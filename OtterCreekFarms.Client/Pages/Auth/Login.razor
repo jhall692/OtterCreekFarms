@@ -1,0 +1,83 @@
+@page "/login"
+@layout AuthLayout
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Sign In — Otter Creek Farms</PageTitle>
+
+<div class="auth-shell">
+    <div class="auth-card">
+
+        <div class="auth-logo">
+            <img src="images/ocf-logo.png" alt="Otter Creek Farms"
+                 onerror="this.style.display='none'" />
+        </div>
+
+        <div class="auth-title">Otter Creek Farms</div>
+        <div class="auth-sub">A Hall Family Farm</div>
+
+        @if (errorMessage is not null)
+        {
+            <div class="alert-banner alert-danger" style="margin-bottom:16px">@errorMessage</div>
+        }
+
+        <div class="field-group" style="margin-bottom:12px">
+            <label class="field-label">Email</label>
+            <input class="field-input" type="email" @bind="email" placeholder="you@example.com" />
+        </div>
+        <div class="field-group" style="margin-bottom:20px">
+            <label class="field-label">Password</label>
+            <input class="field-input" type="password" @bind="password"
+                   @onkeydown="OnKeyDown" />
+        </div>
+
+        <button class="btn btn-primary" @onclick="SignIn" disabled="@busy">
+            @(busy ? "Signing in…" : "Sign In")
+        </button>
+
+        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px">
+            No account? <a href="/register" style="color:var(--primary)">Register</a>
+        </p>
+
+    </div>
+</div>
+
+@code {
+    private string  email    = string.Empty;
+    private string  password = string.Empty;
+    private bool    busy;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Auth.IsAuthenticatedAsync())
+            Nav.NavigateTo("/");
+    }
+
+    private async Task SignIn()
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Email and password are required.";
+            return;
+        }
+
+        busy = true;
+        errorMessage = null;
+
+        var (success, error) = await Auth.LoginAsync(email, password);
+
+        if (success)
+            Nav.NavigateTo("/");
+        else
+        {
+            errorMessage = error ?? "Sign in failed.";
+            busy = false;
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SignIn();
+    }
+}

@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+App_Data/
+*.db
+*.db-shm
+*.db-wal
+deploy-output/
+logs/
+
+# VS
+.vs/
+*.user
+*.suo
+
+# Secrets
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+web.config

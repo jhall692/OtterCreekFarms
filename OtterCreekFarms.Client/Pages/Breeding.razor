@@ -1,0 +1,114 @@
+@page "/breeding"
+@inject ApiService Api
+
+<PageTitle>Breeding — Otter Creek Farms</PageTitle>
+
+<div class="page-header">
+    <div class="header-eyebrow">Herd Analysis</div>
+    <div class="header-title">Breeding</div>
+    <div class="header-pills">
+        <span class="pill active">@input.SowCount sows</span>
+        <span class="pill">@input.BoarCount boars</span>
+    </div>
+</div>
+
+@if (result is not null)
+{
+    <div class="results-hero">
+        <div><div class="hero-metric-label">Annual Cost</div><div class="hero-metric-value">@result.AnnualBreederCost.ToString("C0")</div></div>
+        <div><div class="hero-metric-label">Cost / Piglet</div><div class="hero-metric-value highlight">@result.CostPerWeanedPiglet.ToString("C2")</div></div>
+        <div><div class="hero-metric-label">Born / Year</div><div class="hero-metric-value">@result.PigletsBornPerYear.ToString("F1")</div></div>
+        <div><div class="hero-metric-label">Weaned / Year</div><div class="hero-metric-value">@result.PigletsWeanedPerYear.ToString("F1")</div></div>
+    </div>
+}
+
+<div class="page-body">
+    <div class="card">
+        <div class="card-header"><span class="card-title">Herd</span></div>
+        <div class="card-divider"></div>
+        <div class="field-row" style="margin-bottom:12px">
+            <div class="field-group"><label class="field-label">Sow Count</label><input class="field-input" type="number" @bind="input.SowCount" /></div>
+            <div class="field-group"><label class="field-label">Boar Count</label><input class="field-input" type="number" @bind="input.BoarCount" /></div>
+        </div>
+        <div class="field-row">
+            <div class="field-group"><label class="field-label">Litters / Sow / Year</label><input class="field-input" type="number" @bind="input.LittersPerSowPerYear" /></div>
+            <div class="field-group"><label class="field-label">Replacement Rate %</label><input class="field-input" type="number" @bind="input.ReplacementRatePercent" /></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><span class="card-title">Piglet Production</span></div>
+        <div class="card-divider"></div>
+        <div class="field-row" style="margin-bottom:12px">
+            <div class="field-group"><label class="field-label">Avg Born / Litter</label><input class="field-input" type="number" @bind="input.AvgPigletsBornPerLitter" /></div>
+            <div class="field-group"><label class="field-label">Avg Weaned / Litter</label><input class="field-input" type="number" @bind="input.AvgPigletsWeanedPerLitter" /></div>
+        </div>
+        <div class="field-group"><label class="field-label">Pre-Weaning Mortality %</label><input class="field-input" type="number" @bind="input.MortalityPercentPreWeaning" /></div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><span class="card-title">Annual Operating Costs</span></div>
+        <div class="card-divider"></div>
+        <div class="field-row" style="margin-bottom:12px">
+            <div class="field-group"><label class="field-label">Feed / Sow / Year</label><input class="field-input" type="number" @bind="input.AnnualBreederFeedCostPerSow" /></div>
+            <div class="field-group"><label class="field-label">Feed / Boar / Year</label><input class="field-input" type="number" @bind="input.AnnualBreederFeedCostPerBoar" /></div>
+        </div>
+        <div class="field-row" style="margin-bottom:12px">
+            <div class="field-group"><label class="field-label">Vet Cost</label><input class="field-input" type="number" @bind="input.AnnualBreederVetCost" /></div>
+            <div class="field-group"><label class="field-label">Vaccine Cost</label><input class="field-input" type="number" @bind="input.AnnualBreederVaccineCost" /></div>
+        </div>
+        <div class="field-row" style="margin-bottom:12px">
+            <div class="field-group"><label class="field-label">Housing Allocation</label><input class="field-input" type="number" @bind="input.BreederHousingAllocationAnnual" /></div>
+            <div class="field-group"><label class="field-label">Fence Allocation</label><input class="field-input" type="number" @bind="input.BreederFenceAllocationAnnual" /></div>
+        </div>
+        <div class="field-group"><label class="field-label">Misc Cost</label><input class="field-input" type="number" @bind="input.AnnualBreederMiscCost" /></div>
+    </div>
+
+    <div style="height:20px"></div>
+</div>
+
+<div class="sticky-bar">
+    <div class="btn-row">
+        <button class="btn btn-primary" @onclick="Calculate">Calculate</button>
+        <button class="btn btn-ghost" @onclick="SaveConfig">Save Config</button>
+    </div>
+    @if (savedMessage is not null)
+    {
+        <p style="font-size:12px;color:var(--success);text-align:center;margin-top:6px">@savedMessage</p>
+    }
+</div>
+
+@code {
+    private BreedingInputModel input = new()
+    {
+        SowCount = 2, BoarCount = 0,
+        GiltPurchaseCost = 1000m, OutsideBoarServiceCostAnnual = 300m,
+        AnnualBreederFeedCostPerSow = 500m, AnnualBreederFeedCostPerBoar = 600m,
+        AnnualBreederVetCost = 150m, AnnualBreederVaccineCost = 75m,
+        AnnualBreederMiscCost = 100m, BreederHousingAllocationAnnual = 300m,
+        BreederFenceAllocationAnnual = 250m, LittersPerSowPerYear = 1.5m,
+        AvgPigletsBornPerLitter = 6m, AvgPigletsWeanedPerLitter = 5m,
+        MortalityPercentPreWeaning = 10m, ReplacementRatePercent = 20m
+    };
+    private BreedingResultModel? result;
+    private string? savedMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var saved = await Api.GetBreedingConfigAsync();
+        if (saved is not null) input = saved.ToInputModel();
+        await Calculate();
+    }
+
+    private async Task Calculate() =>
+        result = await Api.CalculateBreedingAsync(input);
+
+    private async Task SaveConfig()
+    {
+        await Api.SaveBreedingConfigAsync(input);
+        savedMessage = "Saved";
+        StateHasChanged();
+        await Task.Delay(3000);
+        savedMessage = null;
+    }
+}

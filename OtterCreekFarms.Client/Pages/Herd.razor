@@ -1,0 +1,207 @@
+@page "/herd"
+@inject ApiService Api
+
+<PageTitle>Herd — Otter Creek Farms</PageTitle>
+
+<div class="page-header">
+    <div class="header-eyebrow">Animal Management</div>
+    <div class="header-title">Herd</div>
+    <div class="header-pills">
+        <span class="pill active">@animals.Count(a => a.Status == AnimalStatus.Active) active</span>
+        <span class="pill">@animals.Count total</span>
+    </div>
+</div>
+
+<div class="page-body">
+    @if (loading)
+    {
+        <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Loading…</div></div>
+    }
+    else if (!animals.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">🐷</div>
+            <div class="empty-title">No animals yet</div>
+            <div class="empty-sub">Add your first animal below</div>
+        </div>
+    }
+    else
+    {
+        @foreach (var animal in animals.OrderBy(a => a.EarTag))
+        {
+            <div class="card animal-card @(animal.Role == AnimalRole.Breeding ? "animal-card-breeding" : "")">
+                <div class="animal-header">
+                    <div class="animal-tag-block">
+                        <div class="animal-ear-tag">@animal.EarTag</div>
+                        <div class="animal-name">@animal.Name</div>
+                    </div>
+                    <span class="pill @(animal.Status == AnimalStatus.Active ? "active" : "")">@animal.Status</span>
+                </div>
+
+                <div class="animal-stats-row">
+                    <div class="animal-stat">
+                        <div class="animal-stat-label">Sex</div>
+                        <div class="animal-stat-value">@animal.Sex</div>
+                    </div>
+                    <div class="animal-stat">
+                        <div class="animal-stat-label">Role</div>
+                        <div class="animal-stat-value">@animal.Role</div>
+                    </div>
+                    <div class="animal-stat">
+                        <div class="animal-stat-label">Est. Weight</div>
+                        <div class="animal-stat-value">@EstimatedWeight(animal).ToString("F0") lb</div>
+                    </div>
+                </div>
+
+                <div class="animal-actions">
+                    <button class="btn btn-ghost" @onclick="() => ToggleEdit(animal)">Edit</button>
+                    @if (animal.Status == AnimalStatus.Active)
+                    {
+                        <button class="btn btn-ghost" @onclick="() => ToggleProcess(animal)"
+                                style="color:var(--warning);border-color:var(--warning)">
+                            Process
+                        </button>
+                    }
+                    <button class="btn btn-ghost" @onclick="() => _ = DeleteAnimal(animal.Id)"
+                            style="color:var(--danger);border-color:var(--danger)">
+                        ✕
+                    </button>
+                </div>
+
+                @if (editingId == animal.Id)
+                {
+                    <div class="inline-form" style="margin-top:12px">
+                        <div class="inline-form-title">Edit Animal</div>
+                        <div class="field-row" style="margin-bottom:12px">
+                            <div class="field-group"><label class="field-label">Ear Tag</label><input class="field-input" @bind="animal.EarTag" /></div>
+                            <div class="field-group"><label class="field-label">Name</label><input class="field-input" @bind="animal.Name" /></div>
+                        </div>
+                        <div class="field-row" style="margin-bottom:12px">
+                            <div class="field-group">
+                                <label class="field-label">Sex</label>
+                                <select class="field-input" @bind="animal.Sex">
+                                    @foreach (var v in Enum.GetValues<AnimalSex>())
+                                    {
+                                        <option value="@v">@v</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field-group">
+                                <label class="field-label">Role</label>
+                                <select class="field-input" @bind="animal.Role">
+                                    @foreach (var v in Enum.GetValues<AnimalRole>())
+                                    {
+                                        <option value="@v">@v</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field-row" style="margin-bottom:12px">
+                            <div class="field-group"><label class="field-label">Live Weight (lb)</label><input class="field-input" type="number" @bind="animal.ActualLiveWeightLbs" /></div>
+                            <div class="field-group"><label class="field-label">ADG (lb/day)</label><input class="field-input" type="number" @bind="animal.AverageDailyGainLbs" /></div>
+                        </div>
+                        <button class="btn btn-primary" style="height:42px;font-size:13px" @onclick="() => _ = SaveAnimal(animal)">Save</button>
+                    </div>
+                }
+
+                @if (processingId == animal.Id)
+                {
+                    <div class="inline-form" style="margin-top:12px">
+                        <div class="inline-form-title">Record Processing</div>
+                        <div class="field-row" style="margin-bottom:12px">
+                            <div class="field-group"><label class="field-label">Live Weight (lb)</label><input class="field-input" type="number" @bind="actuals.ActualLiveWeight" /></div>
+                            <div class="field-group"><label class="field-label">Hanging Weight (lb)</label><input class="field-input" type="number" @bind="actuals.ActualHangingWeight" /></div>
+                        </div>
+                        <div class="field-row" style="margin-bottom:12px">
+                            <div class="field-group"><label class="field-label">Processing Cost</label><input class="field-input" type="number" @bind="actuals.ActualProcessingCost" /></div>
+                            <div class="field-group"><label class="field-label">Revenue Total</label><input class="field-input" type="number" @bind="actuals.ActualRevenueTotal" /></div>
+                        </div>
+                        <div class="field-group" style="margin-bottom:12px">
+                            <label class="field-label">Notes</label>
+                            <textarea class="field-input" @bind="actuals.Notes"></textarea>
+                        </div>
+                        <button class="btn btn-primary" style="height:42px;font-size:13px" @onclick="() => _ = RecordProcessing(animal.Id)">Record</button>
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    <div style="height:20px"></div>
+</div>
+
+<div class="sticky-bar">
+    <button class="btn btn-primary" @onclick="AddAnimal">+ Add Animal</button>
+</div>
+
+@code {
+    private List<BatchAnimalEntity> animals = [];
+    private bool loading = true;
+    private int? editingId;
+    private int? processingId;
+    private ProcessingActualsModel actuals = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        animals = await Api.GetAnimalsAsync();
+        loading = false;
+    }
+
+    private static decimal EstimatedWeight(BatchAnimalEntity a)
+    {
+        var baseWeight = a.LastRecordedWeightLbs ?? a.AcquiredWeightLbs;
+        var baseDate = a.LastWeightDate ?? a.FarmArrivalDate;
+        var days = (decimal)(DateTime.Today - baseDate.Date).Days;
+        return Math.Max(0m, baseWeight + a.AverageDailyGainLbs * days);
+    }
+
+    private void ToggleEdit(BatchAnimalEntity a) =>
+        editingId = editingId == a.Id ? null : a.Id;
+
+    private void ToggleProcess(BatchAnimalEntity a)
+    {
+        processingId = processingId == a.Id ? null : a.Id;
+        actuals = new ProcessingActualsModel { ProcessingDate = DateTime.Today, ActualLiveWeight = EstimatedWeight(a) };
+    }
+
+    private async Task SaveAnimal(BatchAnimalEntity a)
+    {
+        await Api.UpdateAnimalAsync(a);
+        editingId = null;
+    }
+
+    private async Task DeleteAnimal(int id)
+    {
+        await Api.DeleteAnimalAsync(id);
+        animals.RemoveAll(a => a.Id == id);
+    }
+
+    private async Task RecordProcessing(int id)
+    {
+        await Api.RecordProcessingAsync(id, actuals);
+        animals = await Api.GetAnimalsAsync();
+        processingId = null;
+    }
+
+    private async Task AddAnimal()
+    {
+        var animalCount = animals.Count + 1;
+        var year = DateTime.Today.Year.ToString()[2..];
+        var newAnimal = new BatchAnimalEntity
+        {
+            EarTag = $"OCF-{year}-{animalCount:D3}",
+            Name = $"Pig {animalCount}",
+            Sex = AnimalSex.Barrow,
+            Role = AnimalRole.Market,
+            Status = AnimalStatus.Active,
+            Source = AnimalSource.Purchased,
+            FarmArrivalDate = DateTime.Today,
+
+            AverageDailyGainLbs = 0.38m,
+            DefaultRevenueMode = RevenueMode.WholeHalf
+        };
+        var added = await Api.AddAnimalAsync(newAnimal);
+        animals.Add(added);
+        editingId = added.Id;
+    }
+}

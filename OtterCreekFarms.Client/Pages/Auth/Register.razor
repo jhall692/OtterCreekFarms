@@ -1,0 +1,87 @@
+@page "/register"
+@layout AuthLayout
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<PageTitle>Register — Otter Creek Farms</PageTitle>
+
+<div class="auth-shell">
+    <div class="auth-card">
+
+        <div class="auth-logo">
+            <img src="images/ocf-logo.png" alt="Otter Creek Farms"
+                 onerror="this.style.display='none'" />
+        </div>
+
+        <div class="auth-title">Create Account</div>
+        <div class="auth-sub">Otter Creek Farms — A Hall Family Farm</div>
+
+        @if (errorMessage is not null)
+        {
+            <div class="alert-banner alert-danger" style="margin-bottom:16px">@errorMessage</div>
+        }
+
+        <div class="field-group" style="margin-bottom:12px">
+            <label class="field-label">Display Name</label>
+            <input class="field-input" @bind="displayName" placeholder="Your name" />
+        </div>
+        <div class="field-group" style="margin-bottom:12px">
+            <label class="field-label">Email</label>
+            <input class="field-input" type="email" @bind="email" placeholder="you@example.com" />
+        </div>
+        <div class="field-group" style="margin-bottom:12px">
+            <label class="field-label">Password</label>
+            <input class="field-input" type="password" @bind="password" />
+        </div>
+        <div class="field-group" style="margin-bottom:20px">
+            <label class="field-label">Confirm Password</label>
+            <input class="field-input" type="password" @bind="confirmPassword" />
+        </div>
+
+        <button class="btn btn-primary" @onclick="CreateAccount" disabled="@busy">
+            @(busy ? "Creating account…" : "Create Account")
+        </button>
+
+        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:16px">
+            Already have an account? <a href="/login" style="color:var(--primary)">Sign in</a>
+        </p>
+
+    </div>
+</div>
+
+@code {
+    private string  displayName     = string.Empty;
+    private string  email           = string.Empty;
+    private string  password        = string.Empty;
+    private string  confirmPassword = string.Empty;
+    private bool    busy;
+    private string? errorMessage;
+
+    private async Task CreateAccount()
+    {
+        if (string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "All fields are required.";
+            return;
+        }
+
+        if (password != confirmPassword)
+        {
+            errorMessage = "Passwords do not match.";
+            return;
+        }
+
+        busy = true;
+        errorMessage = null;
+
+        var (success, error) = await Auth.RegisterAsync(email, password, displayName);
+
+        if (success)
+            Nav.NavigateTo("/");
+        else
+        {
+            errorMessage = error ?? "Registration failed.";
+            busy = false;
+        }
+    }
+}

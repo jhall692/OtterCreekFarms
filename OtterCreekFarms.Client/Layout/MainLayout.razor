@@ -1,0 +1,48 @@
+@inherits LayoutComponentBase
+@inject AuthService Auth
+@inject NavigationManager Nav
+
+<div class="app-shell">
+    <div class="farm-header">
+        <div class="farm-header-inner">
+            <img class="farm-logo" src="images/ocf-logo.png" alt="Otter Creek Farms"
+                 onerror="this.style.display='none'" />
+        </div>
+        <a class="farm-header-signout" @onclick="Logout" href="javascript:void(0)">
+            Sign out
+        </a>
+    </div>
+    <main class="main-content">
+        @Body
+    </main>
+    <nav class="bottom-nav">
+        <NavLink href="/" Match="NavLinkMatch.All" class="nav-tab">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">Forecast</span>
+        </NavLink>
+        <NavLink href="/herd" class="nav-tab">
+            <span class="nav-icon">🐷</span>
+            <span class="nav-label">Herd</span>
+        </NavLink>
+        <NavLink href="/expenses" class="nav-tab">
+            <span class="nav-icon">💰</span>
+            <span class="nav-label">Expenses</span>
+        </NavLink>
+        <NavLink href="/breeding" class="nav-tab">
+            <span class="nav-icon">🌱</span>
+            <span class="nav-label">Breeding</span>
+        </NavLink>
+        <NavLink href="/settings" class="nav-tab">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Settings</span>
+        </NavLink>
+    </nav>
+</div>
+
+@code {
+    private async Task Logout()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("/login");
+    }
+}

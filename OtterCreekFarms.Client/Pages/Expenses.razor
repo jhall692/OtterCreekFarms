@@ -1,0 +1,140 @@
+@page "/expenses"
+@inject ApiService Api
+
+<PageTitle>Expenses — Otter Creek Farms</PageTitle>
+
+<div class="page-header dark">
+    <div class="header-eyebrow">Operating Costs</div>
+    <div class="header-title">Expenses</div>
+    <div class="header-pills">
+        <span class="pill active">@expenses.Count(e => e.IsActive) active</span>
+        <span class="pill">@expenses.Count total</span>
+    </div>
+</div>
+
+<div class="totals-strip">
+    <div class="totals-row">
+        <div>
+            <div class="total-label">Annual Total</div>
+            <div class="total-value">@totalExpenses.ToString("C2")</div>
+        </div>
+        <div style="text-align:right">
+            <div class="total-label">Active Items</div>
+            <div class="total-value primary">@expenses.Count(e => e.IsActive)</div>
+        </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" style="margin-top:10px" @onclick="AddExpense">+ Add Expense</button>
+</div>
+
+<div class="page-body" style="padding-top:14px">
+    @if (loading)
+    {
+        <div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Loading…</div></div>
+    }
+    else
+    {
+        @foreach (var expense in expenses)
+        {
+            <div class="card" style="@(expense.IsActive ? "" : "opacity:0.55")">
+                <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+                    <div class="expense-icon-bg"><span style="font-size:16px">@GetIcon(expense.Category)</span></div>
+                    <div style="flex:1">
+                        <div class="field-group">
+                            <label class="field-label">Expense Name</label>
+                            <input class="field-input" value="@expense.Name"
+                                   @onchange="e => { expense.Name = e.Value?.ToString() ?? string.Empty; _ = Save(expense); }" />
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:18px">
+                        <span style="font-size:10px;color:var(--text-muted);font-weight:600">Active</span>
+                        <input type="checkbox" checked="@expense.IsActive"
+                               @onchange="e => { expense.IsActive = (bool)(e.Value ?? false); _ = Save(expense); Recalculate(); }"
+                               style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer" />
+                    </div>
+                </div>
+
+                <div class="field-row" style="margin-bottom:12px">
+                    <div class="field-group">
+                        <label class="field-label">Category</label>
+                        <input class="field-input" value="@expense.Category"
+                               @onchange="e => { expense.Category = e.Value?.ToString() ?? string.Empty; _ = Save(expense); Recalculate(); }" />
+                    </div>
+                    <div class="field-group">
+                        <label class="field-label">Amount ($)</label>
+                        <input class="field-input" type="number" value="@expense.Amount"
+                               @onchange="e => { expense.Amount = decimal.TryParse(e.Value?.ToString(), out var n) ? n : expense.Amount; _ = Save(expense); Recalculate(); }" />
+                    </div>
+                </div>
+
+                <div class="field-group" style="margin-bottom:12px">
+                    <label class="field-label">Frequency</label>
+                    <select class="field-input" value="@expense.Frequency"
+                            @onchange="e => { expense.Frequency = Enum.Parse<ExpenseFrequency>(e.Value?.ToString()!); _ = Save(expense); Recalculate(); }">
+                        @foreach (var freq in Enum.GetValues<ExpenseFrequency>())
+                        {
+                            <option value="@freq" selected="@(expense.Frequency == freq)">@freq</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="field-group" style="margin-bottom:12px">
+                    <label class="field-label">Notes</label>
+                    <textarea class="field-input" rows="2"
+                              @onchange="e => { expense.Notes = e.Value?.ToString() ?? string.Empty; _ = Save(expense); }">@expense.Notes</textarea>
+                </div>
+
+                <button class="btn btn-ghost btn-sm"
+                        style="color:var(--danger);border-color:var(--danger);width:auto;padding:0 14px"
+                        @onclick="() => _ = DeleteExpense(expense.Id)">Delete</button>
+            </div>
+        }
+    }
+    <div style="height:20px"></div>
+</div>
+
+@code {
+    private List<ExpenseItemModel> expenses = [];
+    private decimal totalExpenses;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        expenses = await Api.GetExpensesAsync();
+        Recalculate();
+        loading = false;
+    }
+
+    private async Task Save(ExpenseItemModel e) => await Api.UpdateExpenseAsync(e);
+
+    private async Task AddExpense()
+    {
+        var e = new ExpenseItemModel { Name = "New Expense", Category = "General", Amount = 0m, Frequency = ExpenseFrequency.Annual, IsActive = true };
+        var added = await Api.AddExpenseAsync(e);
+        expenses.Add(added);
+        Recalculate();
+    }
+
+    private async Task DeleteExpense(int id)
+    {
+        await Api.DeleteExpenseAsync(id);
+        expenses.RemoveAll(e => e.Id == id);
+        Recalculate();
+    }
+
+    private void Recalculate()
+    {
+        totalExpenses = expenses.Where(x => x.IsActive).Sum(x => x.Frequency switch
+        {
+            ExpenseFrequency.Monthly => x.Amount * 12m,
+            ExpenseFrequency.Annual  => x.Amount,
+            ExpenseFrequency.PerPig  => x.Amount,
+            _                        => x.Amount
+        });
+    }
+
+    private static string GetIcon(string category) => category?.ToLower() switch
+    {
+        "operations" => "🌐", "packaging" => "🏷️", "utilities" => "⚡",
+        "feed" => "🌾", "health" => "💊", "facilities" => "🏚️", _ => "📋"
+    };
+}

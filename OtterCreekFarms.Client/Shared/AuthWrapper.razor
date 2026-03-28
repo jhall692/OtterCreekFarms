@@ -1,0 +1,45 @@
+@inject AuthService Auth
+@inject NavigationManager Nav
+@implements IDisposable
+
+@if (_checked)
+{
+    @if (_authenticated)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <div></div>
+    }
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _checked       = false;
+    private bool _authenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Auth.OnAuthChanged += OnAuthChanged;
+        _authenticated = await Auth.IsAuthenticatedAsync();
+        _checked = true;
+
+        if (!_authenticated && !Nav.Uri.Contains("/login") && !Nav.Uri.Contains("/register"))
+            Nav.NavigateTo("/login");
+    }
+
+    private void OnAuthChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            _authenticated = await Auth.IsAuthenticatedAsync();
+            if (!_authenticated)
+                Nav.NavigateTo("/login");
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Auth.OnAuthChanged -= OnAuthChanged;
+}

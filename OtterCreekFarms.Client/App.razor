@@ -1,0 +1,27 @@
+@using OtterCreekFarms.Client.Services
+@inject NavigationManager Nav
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        @if (IsAuthPage)
+        {
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.AuthLayout)" />
+        }
+        else
+        {
+            <AuthWrapper>
+                <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+            </AuthWrapper>
+        }
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <p>Page not found.</p>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+@code {
+    private bool IsAuthPage =>
+        Nav.Uri.Contains("/login") || Nav.Uri.Contains("/register");
+}

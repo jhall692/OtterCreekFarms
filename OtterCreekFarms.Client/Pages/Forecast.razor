@@ -1,0 +1,251 @@
+@page "/"
+@inject ApiService Api
+
+<PageTitle>Forecast — Otter Creek Farms</PageTitle>
+
+<div class="page-header">
+    <div class="header-eyebrow">Batch Overview</div>
+    <div class="header-title">Forecast</div>
+    <div class="header-pills">
+        <span class="pill active">@input.PigCount pigs</span>
+        <span class="pill">@input.GrowMonths mo grow</span>
+        <span class="pill">@input.RevenueMode</span>
+    </div>
+</div>
+
+<div class="page-body">
+
+    @if (result is not null)
+    {
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-accent green"></div><div class="kpi-label">Revenue / pig</div><div class="kpi-value">@result.Scenarios.ElementAtOrDefault(1)?.Revenue.ToString("C0")</div></div>
+            <div class="kpi-card"><div class="kpi-accent amber"></div><div class="kpi-label">Cost / pig</div><div class="kpi-value">@result.TotalCostPerPig.ToString("C0")</div></div>
+            <div class="kpi-card"><div class="kpi-accent profit"></div><div class="kpi-label">Profit / pig</div><div class="kpi-value profit">@result.Scenarios.ElementAtOrDefault(1)?.ProfitPerPig.ToString("C0")</div></div>
+            <div class="kpi-card"><div class="kpi-accent blue"></div><div class="kpi-label">Break-even / lb</div><div class="kpi-value">@result.BreakEvenPerLbExpected.ToString("C2")</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><span class="card-title">Scenarios</span><span class="card-badge">3 outcomes</span></div>
+            <div class="card-divider"></div>
+            @foreach (var s in result.Scenarios)
+            {
+                var dotColor   = s.Name == "High" ? "#1A7A3C" : s.Name == "Expected" ? "#2C5F2E" : "#A8C5A8";
+                var profitColor = s.Profit >= 0 ? "var(--success)" : "var(--danger)";
+                <div class="scenario-row">
+                    <span class="scenario-dot" style="background:@dotColor"></span>
+                    <span class="scenario-name">@s.Name</span>
+                    <span class="scenario-rev">@s.Revenue.ToString("C0") rev</span>
+                    <div style="text-align:right">
+                        <div class="scenario-profit" style="color:@profitColor">@s.Profit.ToString("C0")</div>
+                        <div class="scenario-margin">@s.MarginPercent.ToString("F1")%</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (result.TimingScenarios.Any())
+        {
+            <div class="card">
+                <div class="card-header"><span class="card-title">Processing Timing</span></div>
+                <div class="timing-scroll" style="margin-top:12px">
+                    @foreach (var t in result.TimingScenarios)
+                    {
+                        <div class="timing-card">
+                            <div class="timing-card-title">@t.Name</div>
+                            <div class="timing-card-date">@t.ProcessingDate.ToString("MMM d, yyyy")</div>
+                            <div class="divider"></div>
+                            <div class="timing-row"><span class="timing-row-label">Hanging wt</span><span class="timing-row-value">@t.ProjectedHangingWeight.ToString("F0") lb</span></div>
+                            <div class="timing-row"><span class="timing-row-label">Added feed</span><span class="timing-row-value">@t.AddedFeedCostPerPig.ToString("C0")</span></div>
+                            <div class="divider"></div>
+                            <div class="timing-row"><span style="font-size:13px;font-weight:700">Profit / pig</span><span class="timing-row-profit">@t.ProfitPerPig.ToString("C0")</span></div>
+                            <div class="timing-row"><span class="timing-row-label">Δ vs now</span><span class="timing-row-value">@t.ProfitChangeVsNow.ToString("C0")</span></div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    @if (savedBatches.Any())
+    {
+        <div class="card">
+            <div class="card-header"><span class="card-title">Saved Batches</span><span class="card-badge">@savedBatches.Count saved</span></div>
+            <div class="card-divider"></div>
+            @foreach (var batch in savedBatches)
+            {
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--surface-muted)">
+                    <div style="flex:1">
+                        <div style="font-size:13px;font-weight:700">@batch.BatchName</div>
+                        <div style="font-size:11px;color:var(--text-muted)">@batch.PigCount pigs · @batch.SavedAt.ToLocalTime().ToString("MMM d, yyyy")</div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" style="width:auto;padding:0 12px" @onclick="() => LoadBatch(batch)">Load</button>
+                    <button class="btn btn-ghost btn-sm" style="width:auto;padding:0 12px;color:var(--danger);border-color:var(--danger)" @onclick="() => _ = DeleteBatch(batch.Id)">✕</button>
+                </div>
+            }
+        </div>
+    }
+
+    <details class="section-card" open>
+        <summary>Core Setup</summary>
+        <div class="section-body">
+            <div class="field-group"><label class="field-label">Batch Name</label><input class="field-input" @bind="input.BatchName" /></div>
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Pig Count</label><input class="field-input" type="number" @bind="input.PigCount" /></div>
+                <div class="field-group"><label class="field-label">Live Weight / Pig (lb)</label><input class="field-input" type="number" @bind="input.CurrentLiveWeightPerPig" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field-group">
+                    <label class="field-label">Pig Source</label>
+                    <select class="field-input" @bind="input.PigSource">
+                        @foreach (var v in Enum.GetValues<PigSource>()) { <option value="@v">@v</option> }
+                    </select>
+                </div>
+                <div class="field-group">
+                    <label class="field-label">Revenue Mode</label>
+                    <select class="field-input" @bind="input.RevenueMode">
+                        @foreach (var v in Enum.GetValues<RevenueMode>()) { <option value="@v">@v</option> }
+                    </select>
+                </div>
+            </div>
+            <div class="field-group">
+                <label class="field-label">Butcher Profile</label>
+                <select class="field-input" @bind="selectedProfileKey" @bind:after="OnProfileChanged">
+                    @foreach (var p in profiles) { <option value="@p.Key">@p.Name</option> }
+                </select>
+            </div>
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Purchase Cost / Pig</label><input class="field-input" type="number" @bind="input.PurchaseCostPerPig" /></div>
+                <div class="field-group"><label class="field-label">Mortality %</label><input class="field-input" type="number" @bind="input.MortalityPercent" /></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="section-card">
+        <summary>Feed &amp; Seasonality</summary>
+        <div class="section-body">
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Feed Cost / Ton</label><input class="field-input" type="number" @bind="input.BulkFeedCostPerTon" /></div>
+                <div class="field-group"><label class="field-label">Feed lb / Pig / Day</label><input class="field-input" type="number" @bind="input.FeedLbPerPigPerDay" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Grow Months</label><input class="field-input" type="number" @bind="input.GrowMonths" /></div>
+                <div class="field-group"><label class="field-label">Pasture Months</label><input class="field-input" type="number" @bind="input.PastureMonths" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Forecast Start</label><input class="field-input" type="date" @bind="input.ForecastStartDate" /></div>
+                <div class="field-group"><label class="field-label">Planned Processing</label><input class="field-input" type="date" @bind="input.PlannedProcessingDate" /></div>
+            </div>
+        </div>
+    </details>
+
+    <details class="section-card">
+        <summary>Processing &amp; Revenue</summary>
+        <div class="section-body">
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Processing Flat / Pig</label><input class="field-input" type="number" @bind="input.ProcessingFlatPerPig" /></div>
+                <div class="field-group"><label class="field-label">Processing / lb</label><input class="field-input" type="number" @bind="input.ProcessingPerLb" /></div>
+            </div>
+            <div class="field-row">
+                <div class="field-group"><label class="field-label">Slaughter Fee / Pig</label><input class="field-input" type="number" @bind="input.SlaughterFeePerPig" /></div>
+                <div class="field-group"><label class="field-label">Whole / Half $ / lb</label><input class="field-input" type="number" @bind="input.WholeHalfPricePerLb" /></div>
+            </div>
+            <div class="field-row-3">
+                <div class="field-group"><label class="field-label">HW Low</label><input class="field-input" type="number" @bind="input.HangingWeightLow" /></div>
+                <div class="field-group"><label class="field-label">Expected</label><input class="field-input" type="number" @bind="input.HangingWeightExpected" /></div>
+                <div class="field-group"><label class="field-label">High</label><input class="field-input" type="number" @bind="input.HangingWeightHigh" /></div>
+            </div>
+        </div>
+    </details>
+
+    <div style="height:20px"></div>
+</div>
+
+<div class="sticky-bar">
+    <div class="btn-row">
+        <button class="btn btn-primary" @onclick="Calculate">Calculate</button>
+        <button class="btn btn-ghost" @onclick="SaveBatch">Save Batch</button>
+    </div>
+    @if (savedMessage is not null)
+    {
+        <p style="font-size:12px;color:var(--success);text-align:center;margin-top:6px">@savedMessage</p>
+    }
+</div>
+
+@code {
+    private ForecastInputModel input = new()
+    {
+        BatchName = "Mangalitsa Batch 1", PigCount = 5,
+        PigSource = PigSource.Purchased, RevenueMode = RevenueMode.RetailCuts,
+        GrowMonths = 18, PastureMonths = 10, PurchaseCostPerPig = 200m,
+        BulkFeedCostPerTon = 430m, FeedLbPerPigPerDay = 6.7m,
+        SupplementFeedAdjustmentPercent = 25m, ProcessingPerLb = 0.75m,
+        SlaughterFeePerPig = 50m, SmokingCostPerLb = 1.50m, SausageCostPerLb = 0.60m,
+        EstimatedProcessingLbsPerPig = 240m, EstimatedSmokedLbsPerPig = 40m,
+        EstimatedSausageLbsPerPig = 25m, HangingWeightLow = 220m,
+        HangingWeightExpected = 240m, HangingWeightHigh = 260m,
+        WholeHalfPricePerLb = 5.50m, RetailRevenuePerPigLow = 1800m,
+        RetailRevenuePerPigExpected = 2200m, RetailRevenuePerPigHigh = 2600m,
+        ForecastStartDate = DateTime.Today, PlannedProcessingDate = DateTime.Today.AddDays(90),
+        CurrentLiveWeightPerPig = 240m, AverageDailyGainLbs = 0.35m,
+        DressingPercentageExpected = 72m, PastureSeasonStartMonth = 6,
+        PastureSeasonEndMonth = 9, WinterFeedMultiplierPercent = 25m,
+        WinterExtraCostPerPigPerDay = 0.15m
+    };
+
+    private ForecastResultModel?      result;
+    private List<ButcherProfileModel> profiles     = [];
+    private List<ForecastBatchEntity> savedBatches = [];
+    private string                    selectedProfileKey = "ortys";
+    private string?                   savedMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        profiles     = await Api.GetButcherProfilesAsync();
+        savedBatches = await Api.GetForecastBatchesAsync();
+        await Calculate();
+    }
+
+    private async Task Calculate()
+    {
+        NormalizeInputs();
+        result = await Api.CalculateForecastAsync(input);
+    }
+
+    private async Task SaveBatch()
+    {
+        await Api.SaveForecastBatchAsync(input);
+        savedBatches  = await Api.GetForecastBatchesAsync();
+        savedMessage  = $"Saved {input.BatchName}";
+        StateHasChanged();
+        await Task.Delay(3000);
+        savedMessage = null;
+    }
+
+    private void LoadBatch(ForecastBatchEntity batch) =>
+        input.CopyFrom(batch.ToInputModel());
+
+    private async Task DeleteBatch(int id)
+    {
+        await Api.DeleteForecastBatchAsync(id);
+        savedBatches = await Api.GetForecastBatchesAsync();
+    }
+
+    private void OnProfileChanged()
+    {
+        var profile = profiles.FirstOrDefault(p => p.Key == selectedProfileKey);
+        if (profile is null) return;
+        input.ButcherProfileKey    = profile.Key;
+        input.ProcessingFlatPerPig = profile.ProcessingFlatPerHog;
+        input.ProcessingPerLb      = profile.ProcessingPerLb;
+        input.SlaughterFeePerPig   = profile.SlaughterFeePerHog;
+        input.SmokingCostPerLb     = profile.SmokingPerLb;
+        input.SausageCostPerLb     = profile.SausagePerLb;
+    }
+
+    private void NormalizeInputs()
+    {
+        if (input.PastureMonths > input.GrowMonths) input.PastureMonths = input.GrowMonths;
+        if (input.PlannedProcessingDate < input.ForecastStartDate)
+            input.PlannedProcessingDate = input.ForecastStartDate;
+    }
+}
